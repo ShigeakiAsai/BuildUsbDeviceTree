@@ -79,6 +79,7 @@ protected:
 	public:
 		CStringDescriptor()
 		{
+			_nDescriptorType = 0;
 			_nDescriptorIndex = 0;
 			_nLanguageID = 0;
 		}
@@ -738,6 +739,10 @@ protected:
 			//_pNodeConnectionInfoEx = (PUSB_NODE_CONNECTION_INFORMATION_EX)_pNodeConnectionInfoEx_buffer;
 			::ZeroMemory(_pNodeConnectionInfoEx_buffer,sizeof(USB_NODE_CONNECTION_INFORMATION_EX) + sizeof(USB_PIPE_INFO) * 30);
 
+			_bNodeConnectionInfoExV2 = false;
+			//_pNodeConnectionInfoEx = (PUSB_NODE_CONNECTION_INFORMATION_EX)_pNodeConnectionInfoEx_buffer;
+			::ZeroMemory(_pNodeConnectionInfoExV2_buffer, sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2));
+
 			_nPort = 0;
 		}
 
@@ -756,8 +761,17 @@ protected:
 		}
 		//PUSB_NODE_CONNECTION_INFORMATION_EX	_pNodeConnectionInfoEx;
 
+		bool	_bNodeConnectionInfoExV2;
+		PUSB_NODE_CONNECTION_INFORMATION_EX_V2	Get_pNodeConnectionInfoExV2()
+		{
+			return	(PUSB_NODE_CONNECTION_INFORMATION_EX_V2)_pNodeConnectionInfoExV2_buffer;
+		}
+		//PUSB_NODE_CONNECTION_INFORMATION_EX_V2	_pNodeConnectionInfoExV2;
+
+
 	private:
 		BYTE	_pNodeConnectionInfoEx_buffer[sizeof(USB_NODE_CONNECTION_INFORMATION_EX) + sizeof(USB_PIPE_INFO) * 30];
+		BYTE	_pNodeConnectionInfoExV2_buffer[sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2)];
 
 	};
 
@@ -783,7 +797,10 @@ protected:
 		ULONG       index;
 		BOOL        success;
 
-		PUSB_NODE_CONNECTION_INFORMATION_EX connectionInfoEx;
+		PUSB_NODE_CONNECTION_INFORMATION_EX    connectionInfoEx;
+		// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 start
+		PUSB_NODE_CONNECTION_INFORMATION_EX_V2 connectionInfoExV2;
+		// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 end
 
 		CAtlString	strDeviceDesc;
 
@@ -799,6 +816,15 @@ protected:
 			nBytesEx = sizeof(pBuff);
 			connectionInfoEx = (PUSB_NODE_CONNECTION_INFORMATION_EX)pBuff;
 			::ZeroMemory(connectionInfoEx,nBytesEx);
+
+			// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 start
+			ULONG	nBytesExV2;
+			BYTE	pBuffExV2[sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2)];
+
+			nBytesExV2 = sizeof(pBuffExV2);
+			connectionInfoExV2 = (PUSB_NODE_CONNECTION_INFORMATION_EX_V2)pBuffExV2;
+			::ZeroMemory(connectionInfoExV2, nBytesExV2);
+			// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 end
 
 
 			//IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EXを取得
@@ -848,6 +874,40 @@ protected:
 				memcpy(&connectionInfoEx->PipeList[0],&connectionInfo->PipeList[0],sizeof(USB_PIPE_INFO) * 30);
 				delete[]	(connectionInfo);
 			}
+			
+			// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 start
+			if (connectionInfoEx->ConnectionStatus == DeviceConnected)
+			{
+				// IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2を取得
+
+				nBytesExV2 = sizeof(pBuffExV2);
+				connectionInfoExV2 = (PUSB_NODE_CONNECTION_INFORMATION_EX_V2)pBuffExV2;
+				::ZeroMemory(connectionInfoExV2, nBytesExV2);
+
+				connectionInfoExV2->ConnectionIndex = index;
+				connectionInfoExV2->Length = sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2);
+				connectionInfoExV2->SupportedUsbProtocols.Usb300 = 1;
+
+				success = DeviceIoControl(hHubDevice,
+					IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2,
+					connectionInfoExV2,
+					sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2),
+					connectionInfoExV2,
+					sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2),
+					&nBytesExV2,
+					NULL);
+
+				if (!success || nBytesExV2 < sizeof(USB_NODE_CONNECTION_INFORMATION_EX_V2))
+				{
+					connectionInfoExV2 = NULL;
+				}
+				else if (connectionInfoExV2->Flags.DeviceIsOperatingAtSuperSpeedOrHigher == 1)
+				{
+					connectionInfoExV2->Flags.DeviceIsOperatingAtSuperSpeedOrHigher = connectionInfoExV2->Flags.DeviceIsOperatingAtSuperSpeedOrHigher;
+				}
+
+			}
+			// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 end
 
 
 			bool	ret;
@@ -867,7 +927,16 @@ protected:
 
 
 			if(connectionInfoEx->ConnectionStatus == DeviceConnected)
-				GetAllStringDescriptors(hHubDevice,index,&connectionInfoEx->DeviceDescriptor,_acDeviceInfo[nIndex].acDescriptor);
+			{
+				GetAllStringDescriptors(hHubDevice, index, &connectionInfoEx->DeviceDescriptor, _acDeviceInfo[nIndex].acDescriptor);
+				// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 start
+				if ((connectionInfoExV2 != NULL) && (nBytesExV2 > 0))
+				{
+					::memcpy(_acDeviceInfo[nIndex].Get_pNodeConnectionInfoExV2(), connectionInfoExV2, nBytesExV2);
+				}
+				// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 end
+			}
+
 
 
 			strDeviceDesc = _T("");
@@ -941,7 +1010,7 @@ protected:
 
 public:
 
-	bool	Test()
+	bool	BuildUsbDeviceTree()
 	{
 		BOOL		ret;
 		HANDLE		hHCDev;
@@ -1068,7 +1137,7 @@ public:
 
 			CAtlArray<UINT>	anNextIndex;
 
-			pInfo = &_acDeviceInfo[(*panIndex)[i]];
+			pInfo = (CInfo*)(&_acDeviceInfo[(*panIndex)[i]]);
 
 			//デバイス名の表示
 			{
@@ -1181,6 +1250,75 @@ public:
 					strBuff.Format(_T("%s    iSerialNumber: 0x%02X（%s）\n"), (LPCTSTR)strPrefix,iData, (LPCTSTR)strDescriptor);
 					strMessage += strBuff;
 				}
+				// Add Speed info start
+				strBuff.Format(_T("%s    Speed: "), (LPCTSTR)strPrefix);
+				strMessage += strBuff;
+				switch (pInfo->Get_pNodeConnectionInfoEx()->Speed)
+				{
+					case UsbLowSpeed:
+						strBuff = _T("UsbLowSpeed(low-speed USB 1.1)\n");
+						break;
+					case UsbFullSpeed:
+						strBuff = _T("UsbFullSpeed(full-speed USB 1.1)\n");
+						break;
+					case UsbHighSpeed:
+						strBuff = _T("UsbHighSpeed(high-speed USB 2.0)\n");
+						break;
+					case UsbSuperSpeed:
+						strBuff = _T("UsbSuperSpeed(SuperSpeed USB 3.0)\n");
+						break;
+					default:
+						strBuff = _T("Unknown\n");
+				}
+				strMessage += strBuff;
+				// Add Speed info end
+
+
+				// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 start
+				strBuff.Format(_T("%s    SupportedUsbProtocols.ul(bitmask) : 0x%04X\n"), (LPCTSTR)strPrefix, pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.ul);
+				strMessage += strBuff;
+				strBuff.Format(_T("%s      "), (LPCTSTR)strPrefix);
+				strMessage += strBuff;
+				if (pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb110)
+				{
+					strBuff = _T("Usb110  ");
+					strMessage += strBuff;
+				}
+				if (pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb200)
+				{
+					strBuff = _T("Usb200  ");
+					strMessage += strBuff;
+				}
+				if (pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb300)
+				{
+					strBuff = _T("Usb300  ");
+					strMessage += strBuff;
+				}
+				strBuff = _T("\n");
+				strMessage += strBuff;
+
+				strBuff.Format(_T("%s    Flags.ul(bitmask) : 0x%04X\n"), (LPCTSTR)strPrefix, pInfo->Get_pNodeConnectionInfoExV2()->Flags.ul);
+				strMessage += strBuff;
+				strBuff.Format(_T("%s      DeviceIsOperatingAtSuperSpeedOrHigher     : %s\n"), (LPCTSTR)strPrefix, 
+					(pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsOperatingAtSuperSpeedOrHigher ? _T("TRUE"): _T("FALSE")));
+				strMessage += strBuff;
+				strBuff.Format(_T("%s      DeviceIsSuperSpeedCapableOrHigher         : %s\n"), (LPCTSTR)strPrefix, 
+					(pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsSuperSpeedCapableOrHigher ? _T("TRUE") : _T("FALSE")));
+				strMessage += strBuff;
+#if 0
+				// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbioctl/ns-usbioctl-_usb_node_connection_information_ex_v2_flags
+				//  According to above document
+				//  "DeviceIsOperatingAtSuperSpeedPlusOrHigher" and "DeviceIsSuperSpeedPlusCapableOrHigher"
+				//  are Reserved. Do not use.
+				strBuff.Format(_T("%s      DeviceIsOperatingAtSuperSpeedPlusOrHigher : %s\n"), (LPCTSTR)strPrefix, 
+					(pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsOperatingAtSuperSpeedPlusOrHigher ? _T("TRUE") : _T("FALSE")));
+				strMessage += strBuff;
+				strBuff.Format(_T("%s      DeviceIsSuperSpeedPlusCapableOrHigher     : %s\n"), (LPCTSTR)strPrefix, 
+					(pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsSuperSpeedPlusCapableOrHigher ? _T("TRUE") : _T("FALSE")));
+				strMessage += strBuff;
+#endif
+				// Try IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX_V2 end
+
 
 				//strBuff.Format(_T("%s    bcdUSB: 0x%04X\n"),strPrefix,pInfo->Get_pNodeConnectionInfoEx()->DeviceDescriptor.bcdUSB);
 				//strMessage += strBuff;
@@ -1218,7 +1356,7 @@ void	Test()
 {
 	CUsbInfo	cInfo;
 
-	cInfo.Test();
+	cInfo.BuildUsbDeviceTree();
 	cInfo.PrintTreeData();
 }
 
