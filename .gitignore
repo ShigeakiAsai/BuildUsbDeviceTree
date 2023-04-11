@@ -37,3 +37,4 @@ x64/
 BuildUsbDeviceTree.cpp.draft
 BuildUsbDeviceTree.cpp.v1
 BuildUsbDeviceTree.cpp.v2
+dnptreedata.h
