@@ -26,5 +26,8 @@
     <ClInclude Include="BuildUsbDeviceTree.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="dnptreedata.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
