@@ -15,14 +15,38 @@
 
 int main(int argc, wchar_t* argv[])
 {
-	CAtlString strParentProperty;
+	TARGET_USB_DEVICE_INFO  sTargetUsbDeviceInfo;
+	CAtlString              strParentProperty;
 
 	setlocale(LC_CTYPE, "");
 
 	strParentProperty = L"USB\\VID_174C&PID_1351\\MSFT30HBSA21311000413_____";
 	//	strParentProperty = L"USB\\VID_174B&PID_55BB\\MSFT3000000000000020191024";
 
-	GetTargetUsbDeviceInfo(strParentProperty);
+	extern void	GetTargetUsbDeviceInfo(CAtlString & strParentProperty, PTARGET_USB_DEVICE_INFO pTargetUsbDeviceInfo);
+	GetTargetUsbDeviceInfo(strParentProperty , &sTargetUsbDeviceInfo);
+
+
+#ifdef _DEBUG
+	// デバッグコード
+	if (sTargetUsbDeviceInfo.nFindTargetNumber == 0)
+	{
+		wprintf(L"Not Found Device!!!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+	}
+	else if (sTargetUsbDeviceInfo.nFindTargetNumber > 1)
+	{
+		wprintf(L"Too Found Device!!!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+	}
+	else
+	{
+		wprintf(L"Found Target Device!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+		wprintf(L"  DeviceIsOperatingAtSuperSpeedOrHigher   :%d\n", sTargetUsbDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher);
+		wprintf(L"  DeviceDeviceIsSuperSpeedCapableOrHigher :%d\n", sTargetUsbDeviceInfo.nTargetDeviceDeviceIsSuperSpeedCapableOrHigher);
+	}
+#endif
 
 	return	0;
 }
