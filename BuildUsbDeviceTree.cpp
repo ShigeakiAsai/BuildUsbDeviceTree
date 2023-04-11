@@ -1,5 +1,6 @@
-// Test07.cpp : アプリケーションのエントリ ポイントを定義します。
 //
+// https://www.usefullcode.net/2007/02/usbusb.html
+// "USBデバイスやUSBハブの詳細情報を取得する"
 //
 
 #define UNICODE 1
@@ -16,7 +17,6 @@
 #include <tchar.h>
 
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS	// 一部の CString コンストラクタは明示的です。
-
 #include <atlbase.h>
 
 
@@ -54,9 +54,7 @@
 #include "atlstr.h"
 #include "atlcoll.h"
 
-#include <locale.h>
-
-#include "DnpTreeData.h"
+#include "BuildUsbDeviceTree.h"
 
 
 const	TCHAR* ConnectionStatuses[] =
@@ -1111,6 +1109,7 @@ public:
 	}
 
 
+#ifdef _DEBUG
 	bool	PrintTreeData(CAtlArray<UINT>* panIndex=NULL,CAtlString strPrefix=_T(""))
 	{
 		bool	ret;
@@ -1347,26 +1346,219 @@ public:
 
 		return	true;
 	}
+#endif
+
+
+	bool	SearchDeviceFromTreeData(CAtlArray<UINT>* panIndex = NULL, PTARGET_USB_DEVICE_INFO pTargetUsbDeviceInfo = NULL)
+	{
+		bool	ret;
+		CAtlArray<UINT>	anRootIndex;
+
+		if (panIndex == NULL)
+		{
+			ret = _treeDeviceInfoIndex.GetRootItemIndex(anRootIndex);
+			if (ret == false)
+				return	false;
+			panIndex = &anRootIndex;
+		}
+
+		size_t	i;
+		size_t	nSize;
+
+		nSize = panIndex->GetCount();
+		for (i = nSize - 1; i != -1; i--)
+		{
+			CInfo* pInfo;
+
+			if ((*panIndex)[i] >= _acDeviceInfo.GetCount())
+				continue;
+
+			CAtlArray<UINT>	anNextIndex;
+
+			pInfo = (CInfo*)(&_acDeviceInfo[(*panIndex)[i]]);
+
+
+			//USBハブ情報
+			if (pInfo->_bNodeInfo)
+			{
+				//USBハブ情報の表示
+			}
+
+
+			//デバイス／ハブ詳細情報の表示
+			if (pInfo->_bNodeConnectionInfoEx && pInfo->Get_pNodeConnectionInfoEx()->ConnectionStatus == DeviceConnected)
+			{
+
+				USHORT      nPortDeviceidVendor  = pInfo->Get_pNodeConnectionInfoEx()->DeviceDescriptor.idVendor;
+				USHORT      nPortDeviceidProduct = pInfo->Get_pNodeConnectionInfoEx()->DeviceDescriptor.idProduct;
+				CAtlString	strPortDeviceiSerialNumber;
+
+				UCHAR       nPortDeviceSpeed = pInfo->Get_pNodeConnectionInfoEx()->Speed;
+
+				BYTE	    iData;
+				iData = pInfo->Get_pNodeConnectionInfoEx()->DeviceDescriptor.iSerialNumber;
+				if (iData)
+				{
+					{
+						size_t	j;
+						size_t	nSize;
+
+						nSize = pInfo->acDescriptor.GetCount();
+						for (j = 0; j < nSize; j++)
+						{
+							if (pInfo->acDescriptor[j]._nDescriptorIndex != iData)
+								continue;
+
+							strPortDeviceiSerialNumber = pInfo->acDescriptor[j]._strDescriptor;
+							break;
+						}
+					}
+				}
+
+
+
+				// from V2
+				ULONG nPortDeviceSpeed_Usb110 = pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb110;
+				ULONG nPortDeviceSpeed_Usb200 = pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb200;
+				ULONG nPortDeviceSpeed_Usb300 = pInfo->Get_pNodeConnectionInfoExV2()->SupportedUsbProtocols.Usb300;
+
+				ULONG nPortDeviceDeviceIsOperatingAtSuperSpeedOrHigher     = pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsOperatingAtSuperSpeedOrHigher;
+				ULONG nPortDeviceDeviceIsSuperSpeedCapableOrHigher         = pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsSuperSpeedCapableOrHigher;
+#if 0
+				// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbioctl/ns-usbioctl-_usb_node_connection_information_ex_v2_flags
+				//  According to above document
+				//  "DeviceIsOperatingAtSuperSpeedPlusOrHigher" and "DeviceIsSuperSpeedPlusCapableOrHigher"
+				//  are Reserved. Do not use.
+				ULONG nPortDeviceDeviceIsOperatingAtSuperSpeedPlusOrHigher = pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsOperatingAtSuperSpeedPlusOrHigher;
+				ULONG nPortDeviceDeviceIsSuperSpeedPlusCapableOrHigher     = pInfo->Get_pNodeConnectionInfoExV2()->Flags.DeviceIsSuperSpeedPlusCapableOrHigher;
+#endif
+
+				if (pTargetUsbDeviceInfo->nTargetidVendor == nPortDeviceidVendor &&
+					pTargetUsbDeviceInfo->nTargetidProduct == nPortDeviceidProduct &&
+					pTargetUsbDeviceInfo->strTargetiSerialNumber.Find(strPortDeviceiSerialNumber, 0))
+				{
+					pTargetUsbDeviceInfo->nFindTargetNumber++;
+					if (pTargetUsbDeviceInfo->nFindTargetNumber == 1)
+					{
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb110 = nPortDeviceSpeed_Usb110;
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb200 = nPortDeviceSpeed_Usb200;
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb300 = nPortDeviceSpeed_Usb300;
+						pTargetUsbDeviceInfo->nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher = nPortDeviceDeviceIsOperatingAtSuperSpeedOrHigher;
+						pTargetUsbDeviceInfo->nTargetDeviceDeviceIsSuperSpeedCapableOrHigher = nPortDeviceDeviceIsSuperSpeedCapableOrHigher;
+					}
+					else
+					{
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb110 = 0;
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb200 = 0;
+						pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb300 = 0;
+						pTargetUsbDeviceInfo->nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher = 0;
+						pTargetUsbDeviceInfo->nTargetDeviceDeviceIsSuperSpeedCapableOrHigher = 0;
+					}
+				}
+
+			}
+
+
+			ret = _treeDeviceInfoIndex.GetChildItemIndex((*panIndex)[i], anNextIndex);
+			if (ret)
+				SearchDeviceFromTreeData(&anNextIndex, pTargetUsbDeviceInfo);
+		}
+
+		return	true;
+	}
 
 
 };
 
 
-void	Test()
+void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty )
 {
 	CUsbInfo	cInfo;
+	TARGET_USB_DEVICE_INFO  sTargetDeviceInfo;
 
 	cInfo.BuildUsbDeviceTree();
+
+#ifdef _DEBUG
 	cInfo.PrintTreeData();
-}
+#endif
+
+	// 親プロパティよりUSB機器であるかをチェックする
+	if (strParentProperty.Left(4) == L"USB\\") {
+
+		// USB機器であるなら親プロパティに含まれる「Vendor ID」と「Product ID」と
+		// 「iSerial値が含まれた情報」を取得する
+		CAtlString strVendorId;
+		CAtlString strProductId;
+		wchar_t* pChar = new wchar_t[256];
+
+		// VendorId を取得(文字列)
+		strVendorId = strParentProperty.Mid(8, 4);
+		// VendorIdの頭に"0x"を付与(まだ文字列)
+		strVendorId = L"0x" + strVendorId;
+		// 変換用バッファの初期化
+		ZeroMemory(pChar, sizeof(pChar));
+		// 変換用バッファへ"0x"が付与されたVendorIdをコピー
+		wcscpy_s(pChar, sizeof(pChar), strVendorId);
+		// VendorIdを数値化
+		sTargetDeviceInfo.nTargetidVendor = (SHORT)wcstol(pChar, NULL, 16);
 
 
-int main(int argc, wchar_t* argv[])
-{
+		// ProductId を取得(文字列)
+		strProductId = strParentProperty.Mid(17, 4);
+		// ProductIdの頭に"0x"を付与(まだ文字列)
+		strProductId = L"0x" + strProductId;
+		// 変換用バッファの初期化
+		ZeroMemory(pChar, sizeof(pChar));
+		// 変換用バッファへ"0x"が付与されたProductIdをコピー
+		wcscpy_s(pChar, sizeof(pChar), strProductId);
+		// ProductIdを数値化
+		sTargetDeviceInfo.nTargetidProduct = (SHORT)wcstol(pChar, NULL, 16);
 
-	setlocale(LC_CTYPE, "");
 
-	Test();
+		// iSerialNumber を取得
+		sTargetDeviceInfo.strTargetiSerialNumber = strParentProperty.Mid(22, 256);
 
-	return	0;
+
+		// newしたバッファは忘れずにdeleteしましょう
+		delete[] pChar;
+
+
+		// その他のメンバを初期化
+		sTargetDeviceInfo.nFindTargetNumber = 0;
+		sTargetDeviceInfo.nTargetDeviceSpeed_Usb110 = 0;
+		sTargetDeviceInfo.nTargetDeviceSpeed_Usb200 = 0;
+		sTargetDeviceInfo.nTargetDeviceSpeed_Usb300 = 0;
+		sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher = 0;
+		sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedCapableOrHigher = 0;
+		sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedPlusOrHigher = 0;
+		sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedPlusCapableOrHigher = 0;
+
+	}
+
+	cInfo.SearchDeviceFromTreeData(NULL, &sTargetDeviceInfo);
+
+
+#ifdef _DEBUG
+	// デバッグコード
+	if (sTargetDeviceInfo.nFindTargetNumber == 0)
+	{
+		wprintf(L"Not Found Device!!!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+	}
+	else if(sTargetDeviceInfo.nFindTargetNumber > 1 )
+	{
+		wprintf(L"Too Found Device!!!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+	}
+	else
+	{
+		wprintf(L"Found Target Device!\n");
+		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
+		wprintf(L"  DeviceIsOperatingAtSuperSpeedOrHigher   :%d\n", sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher);
+		wprintf(L"  DeviceDeviceIsSuperSpeedCapableOrHigher :%d\n", sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedCapableOrHigher);
+	}
+#endif
+
+	
+	return;
 }
