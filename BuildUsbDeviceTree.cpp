@@ -55,6 +55,7 @@
 #include "atlcoll.h"
 
 #include "BuildUsbDeviceTree.h"
+#include "dnptreedata.h"
 
 
 const	TCHAR* ConnectionStatuses[] =
@@ -1471,10 +1472,9 @@ public:
 };
 
 
-void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty )
+void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty, PTARGET_USB_DEVICE_INFO pTargetUsbDeviceInfo)
 {
 	CUsbInfo	cInfo;
-	TARGET_USB_DEVICE_INFO  sTargetDeviceInfo;
 
 	cInfo.BuildUsbDeviceTree();
 
@@ -1500,7 +1500,7 @@ void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty )
 		// 変換用バッファへ"0x"が付与されたVendorIdをコピー
 		wcscpy_s(pChar, sizeof(pChar), strVendorId);
 		// VendorIdを数値化
-		sTargetDeviceInfo.nTargetidVendor = (SHORT)wcstol(pChar, NULL, 16);
+		pTargetUsbDeviceInfo->nTargetidVendor = (SHORT)wcstol(pChar, NULL, 16);
 
 
 		// ProductId を取得(文字列)
@@ -1512,11 +1512,11 @@ void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty )
 		// 変換用バッファへ"0x"が付与されたProductIdをコピー
 		wcscpy_s(pChar, sizeof(pChar), strProductId);
 		// ProductIdを数値化
-		sTargetDeviceInfo.nTargetidProduct = (SHORT)wcstol(pChar, NULL, 16);
+		pTargetUsbDeviceInfo->nTargetidProduct = (SHORT)wcstol(pChar, NULL, 16);
 
 
 		// iSerialNumber を取得
-		sTargetDeviceInfo.strTargetiSerialNumber = strParentProperty.Mid(22, 256);
+		pTargetUsbDeviceInfo->strTargetiSerialNumber = strParentProperty.Mid(22, 256);
 
 
 		// newしたバッファは忘れずにdeleteしましょう
@@ -1524,41 +1524,19 @@ void	GetTargetUsbDeviceInfo( CAtlString &strParentProperty )
 
 
 		// その他のメンバを初期化
-		sTargetDeviceInfo.nFindTargetNumber = 0;
-		sTargetDeviceInfo.nTargetDeviceSpeed_Usb110 = 0;
-		sTargetDeviceInfo.nTargetDeviceSpeed_Usb200 = 0;
-		sTargetDeviceInfo.nTargetDeviceSpeed_Usb300 = 0;
-		sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher = 0;
-		sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedCapableOrHigher = 0;
-		sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedPlusOrHigher = 0;
-		sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedPlusCapableOrHigher = 0;
+		pTargetUsbDeviceInfo->nFindTargetNumber = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb110 = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb200 = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceSpeed_Usb300 = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceDeviceIsSuperSpeedCapableOrHigher = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceDeviceIsOperatingAtSuperSpeedPlusOrHigher = 0;
+		pTargetUsbDeviceInfo->nTargetDeviceDeviceIsSuperSpeedPlusCapableOrHigher = 0;
 
 	}
 
-	cInfo.SearchDeviceFromTreeData(NULL, &sTargetDeviceInfo);
+	cInfo.SearchDeviceFromTreeData(NULL, pTargetUsbDeviceInfo);
 
 
-#ifdef _DEBUG
-	// デバッグコード
-	if (sTargetDeviceInfo.nFindTargetNumber == 0)
-	{
-		wprintf(L"Not Found Device!!!\n");
-		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
-	}
-	else if(sTargetDeviceInfo.nFindTargetNumber > 1 )
-	{
-		wprintf(L"Too Found Device!!!\n");
-		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
-	}
-	else
-	{
-		wprintf(L"Found Target Device!\n");
-		wprintf(L"  %s\n", (LPCTSTR)strParentProperty);
-		wprintf(L"  DeviceIsOperatingAtSuperSpeedOrHigher   :%d\n", sTargetDeviceInfo.nTargetDeviceDeviceIsOperatingAtSuperSpeedOrHigher);
-		wprintf(L"  DeviceDeviceIsSuperSpeedCapableOrHigher :%d\n", sTargetDeviceInfo.nTargetDeviceDeviceIsSuperSpeedCapableOrHigher);
-	}
-#endif
-
-	
 	return;
 }
