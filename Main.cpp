@@ -20,10 +20,10 @@ int main(int argc, wchar_t* argv[])
 
 	setlocale(LC_CTYPE, "");
 
-	strParentProperty = L"USB\\VID_174C&PID_1351\\MSFT30HBSA21311000413_____";
+	//  strParentProperty = L"USB\\VID_174C&PID_1351\\MSFT30HBSA21311000413_____";
 	//	strParentProperty = L"USB\\VID_174B&PID_55BB\\MSFT3000000000000020191024";
+	strParentProperty = L"USB\\VID_174C&PID_1351\\MSFT30________19032205B4B5";
 
-	extern void	GetTargetUsbDeviceInfo(CAtlString & strParentProperty, PTARGET_USB_DEVICE_INFO pTargetUsbDeviceInfo);
 	GetTargetUsbDeviceInfo(strParentProperty , &sTargetUsbDeviceInfo);
 
 
