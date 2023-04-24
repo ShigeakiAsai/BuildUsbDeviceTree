@@ -1436,7 +1436,7 @@ public:
 
 				if (pTargetUsbDeviceInfo->nTargetidVendor == nPortDeviceidVendor &&
 					pTargetUsbDeviceInfo->nTargetidProduct == nPortDeviceidProduct &&
-					pTargetUsbDeviceInfo->strTargetiSerialNumber.Find(strPortDeviceiSerialNumber, 0))
+					( pTargetUsbDeviceInfo->strTargetiSerialNumber.Find(strPortDeviceiSerialNumber, 0) != -1) )
 				{
 					pTargetUsbDeviceInfo->nFindTargetNumber++;
 					if (pTargetUsbDeviceInfo->nFindTargetNumber == 1)
